@@ -1,0 +1,2 @@
+# myLocalStorage
+Обертка над indexexDB
