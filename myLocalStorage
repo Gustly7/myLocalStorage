@@ -1,0 +1,115 @@
+(function () {
+  'use strict';
+
+  console.log('myLocalStorage inited');
+
+  let indexedDB = window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB,
+  IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.msIDBTransaction,
+  baseName = 'myBase',
+  storeName = 'myLocalStorage';
+  let qwe = undefined;
+
+  function logerr(err) {
+    console.log(err);
+  }
+
+  function connectDB(f) {
+    let request = indexedDB.open(baseName, 3);
+    request.onerror = logerr;
+    request.onsuccess = function () {
+      f(request.result);
+    }
+    request.onupgradeneeded = function (e) {
+      e.currentTarget.result.createObjectStore(storeName, {
+        keyPath: 'key'
+      });
+      connectDB(f);
+    }
+  }
+
+  async function getObj(pKey) {
+    var x = await new Promise(resolve => {
+        connectDB(function (db) {
+          let request = db.transaction([storeName], 'readonly').objectStore(storeName).get(pKey);
+          request.onerror = logerr;
+          request.onsuccess = function () {
+            resolve(request.result ? request.result.value : -1);
+          }
+        });
+      });
+    return x;
+  }
+
+  function getStorage(f) {
+    connectDB(function (db) {
+      let rows = [],
+      store = db.transaction([storeName], 'readonly').objectStore(storeName);
+
+      if (store.mozGetAll)
+        store.mozGetAll().onsuccess = function (e) {
+          f(e.target.result);
+        };
+      else
+        store.openCursor().onsuccess = function (e) {
+          let cursor = e.target.result;
+          if (cursor) {
+            rows.push(cursor.value);
+            cursor.continue();
+          } else {
+            f(rows);
+          }
+        };
+    });
+  }
+
+  function setObj(pObj) {
+    connectDB(function (db) {
+      let request = db.transaction([storeName], 'readwrite').objectStore(storeName).put(pObj);
+      request.onerror = logerr;
+      request.onsuccess = function () {
+        return request.result;
+      }
+    });
+  }
+
+  function delObj(pObj) {
+    connectDB(function (db) {
+      let request = db.transaction([storeName], 'readwrite').objectStore(storeName).delete(pObj);
+      request.onerror = logerr;
+      request.onsuccess = function () {
+        console.log('Deleted');
+      }
+    });
+  }
+
+  window.myLocalStorage = async function (pKey, pValue) {
+    //Get
+    if (arguments.length == 1) {
+      return await getObj(pKey); ;
+    }
+    //Set
+    if (arguments.length == 2) {
+      setObj({
+        'key': pKey,
+        'value': pValue
+      });
+    }
+  }
+
+  window.myLocalStorage.getAll = async function () {
+    let temp = [];
+    connectDB(function (db) {
+      let request = db.transaction([storeName], 'readwrite').objectStore(storeName).openCursor();
+      request.onsuccess = (event) => {
+        let cursor = event.target.result;
+        if (cursor) {
+          temp.push(cursor.value);
+          cursor.continue();
+        }
+      }
+
+    });
+    return temp;
+  }
+
+})();
